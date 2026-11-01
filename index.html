@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-HK">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>本地 WebGPU Bitcoin Puzzle 搜尋器</title>
+<style>
+  :root {
+    --bg: #0b0f14;
+    --panel: #121821;
+    --border: #1e2a3a;
+    --text: #e7eef7;
+    --muted: #8b9bb0;
+    --accent: #3ddc97;
+    --warn: #ffb020;
+    --danger: #ff5d5d;
+    --link: #6cb6ff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: ui-sans-serif, system-ui, "PingFang HK", "Noto Sans TC", sans-serif;
+    background: radial-gradient(1200px 600px at 20% -10%, #152033 0%, var(--bg) 55%);
+    color: var(--text); min-height: 100vh; line-height: 1.5;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 28px 18px 80px; }
+  h1 { font-size: 1.55rem; margin: 0 0 8px; letter-spacing: 0.02em; }
+  .badge {
+    display: inline-block; font-size: 0.75rem; padding: 3px 10px; border-radius: 999px;
+    background: rgba(61,220,151,0.12); color: var(--accent); border: 1px solid rgba(61,220,151,0.35);
+    margin-bottom: 14px;
+  }
+  .notice {
+    background: rgba(61,220,151,0.08); border: 1px solid rgba(61,220,151,0.25);
+    padding: 12px 14px; border-radius: 12px; margin: 12px 0 20px; color: #c6f6df;
+  }
+  .panel {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+    padding: 16px 16px 14px; margin-bottom: 16px;
+  }
+  label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 6px; }
+  input, select, button, textarea {
+    font: inherit; color: var(--text); background: #0d131c; border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 12px; width: 100%;
+  }
+  input:focus, select:focus { outline: 1px solid var(--accent); }
+  .row { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }
+  @media (max-width: 700px) { .row { grid-template-columns: 1fr; } }
+  .btns { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+  button { width: auto; cursor: pointer; background: #182232; }
+  button.primary { background: linear-gradient(180deg, #2f9e6f, #1f7a55); border-color: #2c9b6c; font-weight: 600; }
+  button.danger { background: #3a1c1c; border-color: #6a3030; color: #ffc9c9; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  @media (max-width: 700px) { .stats { grid-template-columns: 1fr 1fr; } }
+  .stat { background: #0d131c; border-radius: 10px; padding: 10px 12px; border: 1px solid var(--border); }
+  .stat .k { color: var(--muted); font-size: 0.78rem; }
+  .stat .v { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.95rem; word-break: break-all; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr.pass td:nth-child(2) { color: var(--accent); }
+  tr.fail td:nth-child(2) { color: var(--danger); }
+  code { font-family: ui-monospace, Menlo, monospace; font-size: 0.82rem; color: #c7d2fe; }
+  #hit-panel {
+    border-color: var(--accent); box-shadow: 0 0 0 1px rgba(61,220,151,0.25), 0 0 40px rgba(61,220,151,0.08);
+  }
+  #hit-panel h2 { color: var(--accent); margin-top: 0; }
+  .warnbox {
+    background: rgba(255,176,32,0.08); border: 1px solid rgba(255,176,32,0.35);
+    color: #ffe0a3; padding: 12px; border-radius: 10px; margin-top: 10px; font-size: 0.9rem;
+  }
+  .muted { color: var(--muted); font-size: 0.9rem; }
+  footer { margin-top: 28px; color: var(--muted); font-size: 0.82rem; }
+  a { color: var(--link); }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <span class="badge">純本地 · 零抽成 · 私鑰唔會上傳</span>
+    <h1>本地 WebGPU Bitcoin Puzzle 搜尋器</h1>
+    <div class="notice">
+      <strong>純本地運行，中獎私鑰只留喺你瀏覽器；唔會抽成、唔會上傳私鑰。</strong>
+      同某啲線上工具唔同：呢度唔會自動分錢去開發者地址，亦唔會將私鑰加密交去伺服器。
+    </div>
+
+    <div class="panel">
+      <div class="row">
+        <div>
+          <label for="puzzle">謎題預設</label>
+          <select id="puzzle"></select>
+        </div>
+        <div>
+          <label for="recv">你嘅收款地址（可選，只作顯示／自行歸集提示，唔會被抽成）</label>
+          <input id="recv" placeholder="bc1… 或 1…（可留空）" autocomplete="off" />
+        </div>
+      </div>
+      <div id="custom-fields" hidden style="margin-top:12px">
+        <div class="row">
+          <div>
+            <label for="custom-addr">自訂 P2PKH 地址（1…）</label>
+            <input id="custom-addr" spellcheck="false" />
+          </div>
+          <div></div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <div>
+            <label for="custom-start">範圍開始（hex）</label>
+            <input id="custom-start" value="1" spellcheck="false" />
+          </div>
+          <div>
+            <label for="custom-end">範圍結束（hex）</label>
+            <input id="custom-end" value="20" spellcheck="false" />
+          </div>
+        </div>
+      </div>
+      <p id="odds" class="muted" style="margin:12px 0 0"></p>
+      <div class="btns">
+        <button class="primary" id="btn-start">開始搜尋</button>
+        <button class="danger" id="btn-stop" disabled>停止</button>
+        <button id="btn-retest">強制重測</button>
+        <button id="btn-cpu-demo">CPU DEMO 命中演練</button>
+      </div>
+      <p id="status" class="muted" style="margin:10px 0 0">準備中…</p>
+    </div>
+
+    <div class="panel">
+      <div class="stats">
+        <div class="stat"><div class="k">速度</div><div class="v" id="kps">—</div></div>
+        <div class="stat"><div class="k">已檢查</div><div class="v" id="checked">0</div></div>
+        <div class="stat"><div class="k">Dispatch 大小</div><div class="v" id="dispatch">3072</div></div>
+        <div class="stat"><div class="k">目前 chunk</div><div class="v" id="chunk">—</div></div>
+        <div class="stat"><div class="k">ETA（中位數估計）</div><div class="v" id="eta">—</div></div>
+        <div class="stat"><div class="k">GPU / 瀏覽器</div><div class="v" id="gpu">—</div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin:0 0 10px">自測（通過先開得 Start）</h3>
+      <table>
+        <thead><tr><th>項目</th><th>結果</th><th>詳情</th></tr></thead>
+        <tbody id="selftest-body"><tr><td colspan="3" class="muted">尚未執行</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="panel" id="hit-panel" hidden>
+      <h2>🎉 命中私鑰（只喺你本機）</h2>
+      <p>地址：<code id="hit-addr"></code></p>
+      <p>Private key (hex)：<br /><code id="hit-hex"></code></p>
+      <p>WIF（compressed）：<br /><code id="hit-wif"></code></p>
+      <div class="btns">
+        <button id="btn-copy-hex">複製 hex</button>
+        <button id="btn-copy-wif">複製 WIF</button>
+      </div>
+      <div class="warnbox">
+        <strong>歸集警告（好重要）：</strong>
+        公開 mempool 廣播可能被人搶跑（front-run）。建議用私人中繼，例如
+        Rebar Shield / MARA Slipstream 等，小心建構一筆將資金掃去你自己嘅地址。
+        <br /><br />
+        本工具<strong>唔會</strong>自動廣播交易，<strong>唔會</strong>抽成去任何開發者地址。
+        私鑰只顯示喺上面；請自行離線備份，唔好貼去聊天室或不明網站。
+      </div>
+    </div>
+
+    <footer>
+      開源演算法重寫 · 使用本地 vendored <code>@noble/secp256k1</code> 計 chunk 起點 ·
+      搜尋路徑離線可用。詳見 <code>README.md</code>。
+      誠實聲明：大型謎題（如 #71）喺瀏覽器 GPU 上中獎機會極低。
+    </footer>
+  </div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
